@@ -4,95 +4,57 @@ from engine import process_pdf, get_chat_response
 from ui_config import hero_html
 
 def create_ui():
+    # css=custom_css is removed here and moved to app.py's launch()
     with gr.Blocks() as demo:
-        gr.HTML(hero_html)
         state_retriever = gr.State(None)
         
-        # --- 1. UPLOAD & RESET SECTION ---
         with gr.Row():
-            with gr.Column(scale=1):
-                gr.Markdown("### 📂 Document Management")
+            # SIDEBAR: scale=1 gives it that narrow Gemini drawer look
+            with gr.Column(scale=1, elem_id="side_panel"):
+                gr.Markdown("### 💎 Gemini PDF")
+                file_input = gr.File(label="Upload Document", file_types=[".pdf"])
                 
-                # UPDATED: Simplified file input
-                file_input = gr.File(
-                    label="Choose PDF", 
-                    file_types=[".pdf"],
-                    file_count="single",
-                    show_label=True,
-                    container=True # Keeps it contained without the extra 'X' in some themes
+                process_btn = gr.Button("Initialize AI", variant="primary", elem_classes="primary-btn")
+                reset_btn = gr.Button("New Chat", variant="secondary", elem_classes="secondary-btn")
+                
+                status = gr.Markdown("Status: **Ready**")
+
+            # MAIN CHAT: scale=4 makes the chat area wide
+            with gr.Column(scale=4):
+                # Placeholder acts as the Gemini hero/greeting
+                chatbot = gr.Chatbot(
+                    label=None, 
+                    elem_id="chatbot", 
+                    show_label=False,
+                    placeholder=hero_html, # Gemini-style greeting inside chat
+                    avatar_images=(None, "https://www.gstatic.com/lamda/images/gemini_sparkle_v002_d4735304ff6298a4245f.png")
                 )
                 
-                with gr.Row():
-                    process_btn = gr.Button("🚀 Initialize AI", variant="primary")
-                    reset_btn = gr.Button("🗑️ Reset/Replace PDF", variant="stop")
-                
-                status = gr.Markdown("Status: *Waiting for upload...*")
+                chat_interface = gr.ChatInterface(
+                    fn=get_chat_response,
+                    chatbot=chatbot,
+                    additional_inputs=[state_retriever],
+                    multimodal=False,
+                    textbox=gr.Textbox(
+                        placeholder="Ask anything about the document...", 
+                        elem_id="chat_input", 
+                        container=False
+                    )
+                )
 
-        # --- 2. FLOATING CHAT WIDGET ---
-        open_btn = gr.Button("💬 Open Chat", elem_id="open_chat_btn", visible=False)
-
-        with gr.Column(elem_id="floating_container", visible=False) as chat_container:
-            with gr.Row():
-                gr.HTML('<div class="widget-header" style="flex-grow: 1;"><span>📄</span> AI Assistant</div>')
-                min_btn = gr.Button("➖", variant="secondary", size="sm", elem_id="min_button")
-            
-            chatbot = gr.Chatbot(label="Chat History")
-            
-            chat_interface = gr.ChatInterface(
-                fn=get_chat_response,
-                chatbot=chatbot,
-                additional_inputs=[state_retriever],
-                multimodal=False
-            )
-
-        # --- 3. FUNCTIONS ---
+        # LOGIC
         def handle_upload(file):
-            if not file:
-                return None, "❌ No file uploaded.", [], gr.update(visible=False)
-            
+            if not file: return None, "❌ No file.", []
             retriever = process_pdf(file.name)
             if retriever:
                 summary_gen = get_chat_response("Summarize this document in 3 concise bullet points.", [], retriever)
                 full_summary = ""
-                for chunk in summary_gen:
-                    full_summary = chunk
-                
-                initial_msg = [{"role": "assistant", "content": f"✅ **Analysis Complete!**\n\n{full_summary}"}]
-                return retriever, "✅ AI is ready!", initial_msg, gr.update(visible=True)
-            
-            return None, "❌ Processing failed.", [], gr.update(visible=False)
+                for chunk in summary_gen: full_summary = chunk
+                initial_msg = [{"role": "assistant", "content": f"**Analysis Complete!**\n\n{full_summary}"}]
+                return retriever, "✅ AI Ready!", initial_msg
+            return None, "❌ Error.", []
 
-        def reset_app():
-            return (
-                None,                       
-                "Status: *Ready for new upload*", 
-                None,                       
-                [],                         
-                gr.update(visible=False),    
-                gr.update(visible=False)     
-            )
-
-        # --- 4. EVENT LISTENERS ---
-        process_btn.click(
-            handle_upload, 
-            inputs=[file_input], 
-            outputs=[state_retriever, status, chatbot, chat_container],
-            show_progress="full"
-        )
-
-        reset_btn.click(
-            reset_app,
-            outputs=[file_input, status, state_retriever, chatbot, chat_container, open_btn]
-        )
-
-        min_btn.click(
-            lambda: (gr.update(visible=False), gr.update(visible=True)),
-            outputs=[chat_container, open_btn]
-        )
-
-        open_btn.click(
-            lambda: (gr.update(visible=True), gr.update(visible=False)),
-            outputs=[chat_container, open_btn]
-        )
+        process_btn.click(handle_upload, inputs=[file_input], outputs=[state_retriever, status, chatbot])
+        reset_btn.click(lambda: (None, "Status: **Ready**", []), outputs=[file_input, status, chatbot])
         
     return demo

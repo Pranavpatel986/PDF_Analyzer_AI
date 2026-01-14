@@ -1,4 +1,3 @@
-# engine.py
 import os
 import chromadb
 from dotenv import load_dotenv
@@ -15,7 +14,7 @@ load_dotenv()
 
 # --- MODEL CONFIGURATION ---
 # Switching to 1.5-flash for a much higher Free Tier Quota (RPM/RPD)
-llm = ChatGoogleGenerativeAI(model="gemini-1.5-flash", temperature=0.1)
+llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0.1)
 embeddings_model = GoogleGenerativeAIEmbeddings(model="models/gemini-embedding-001")
 
 COLLECTION_NAME = "current_active_pdf"
@@ -108,6 +107,6 @@ def get_chat_response(message, history, retriever):
     except Exception as e:
         # Graceful Quota Handling
         if "429" in str(e):
-            yield "⚠️ **Quota Limit Reached.** Please wait 60 seconds. Gemini 1.5 Flash allows more requests, but you may be moving too fast for the free tier!"
+            yield "⚠️ **Quota Limit Reached.** Please wait 60 seconds. Gemini 2.5 Flash allows more requests, but you may be moving too fast for the free tier!"
         else:
             yield f"⚠️ **An Error Occurred:** {str(e)}"
